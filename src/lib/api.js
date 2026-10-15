@@ -115,3 +115,19 @@ function normalizeAudioUrl(url) {
   if (url.startsWith('//')) return `https:${url}`;
   return url;
 }
+
+/**
+ * Case-insensitive dedupe, preserving first-seen casing.
+ */
+function dedupe(arr) {
+  const seen = new Set();
+  const out = [];
+  for (const item of arr) {
+    const key = item.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(item);
+    }
+  }
+  return out;
+}
