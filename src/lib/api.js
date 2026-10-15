@@ -1,15 +1,56 @@
-const API_BASE = 'https://api.dictionaryapi.dev/api/v2/entries/en';
+// ============================================================
+// Provider configuration
+// ------------------------------------------------------------
+// Toggle the active provider without touching any other file.
+// Add new providers by extending PROVIDERS below.
+// ============================================================
 
-const PROVIDER = 'cdn'; // 'dictionaryapi' | 'cdn'
+const ACTIVE_PROVIDER = 'cdn'; // 'dictionaryapi' | 'cdn' | 'wordnik'
 
-const PROVIDER_URLS = {
-  dictionaryapi: (word) => `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
-  cdn: (word) => `https://cdn.jsdelivr.net/gh/SH20RAJ/OpenDictionaryAPI/data/english/${encodeURIComponent(word)}.json`,
+const PROVIDERS = {
+  // Free Dictionary API — keyless, but historically unreliable
+  dictionaryapi: {
+    url: (word) =>
+      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
+    parse: (raw, word) => {
+      // Returns an array of raw entries
+      if (!Array.isArray(raw) || raw.length === 0) {
+        throw new DictionaryError(`No definitions found for "${word}".`, { type: 'not-found' });
+      }
+      return raw;
+    },
+  },
+
+  // OpenDictionaryAPI (CDN) — same data source as Free Dictionary API,
+  // served as static JSON from jsDelivr. Much more reliable.
+  cdn: {
+    url: (word) =>
+      `https://cdn.jsdelivr.net/gh/SH20RAJ/OpenDictionaryAPI/data/english/${encodeURIComponent(word)}.json`,
+    parse: (raw, word) => {
+      // The CDN returns a single object (not an array)
+      if (!raw || typeof raw !== 'object') {
+        throw new DictionaryError(`No definitions found for "${word}".`, { type: 'not-found' });
+      }
+      return [raw];
+    },
+  },
+
+  // Wordnik — placeholder. Fill this in when your API key arrives.
+  wordnik: {
+    url: (word) =>
+      `https://api.wordnik.com/v4/word.json/${encodeURIComponent(word)}/definitions?limit=10&includeRelated=false&useCanonical=true&includeTags=false&api_key=YOUR_KEY_HERE`,
+    parse: (raw, word) => {
+      // Wordnik returns a flat array of definition objects, not a grouped structure.
+      // We'll build a proper adapter once the key is in hand.
+      throw new DictionaryError('Wordnik provider not yet implemented.', { type: 'malformed' });
+    },
+  },
 };
 
-/**
- * Custom error class so callers can distinguish API failures from other errors.
- */
+// ============================================================
+// Public error class
+// ============================================================
+
 export class DictionaryError extends Error {
   constructor(message, { type = 'unknown', status = null } = {}) {
     super(message);
@@ -19,34 +60,34 @@ export class DictionaryError extends Error {
   }
 }
 
-/**
- * Fetch a word's entry from the Free Dictionary API.
- * Returns an array of normalized entry objects.
- * Throws DictionaryError on failure.
- */
+// ============================================================
+// Main entry
+// ============================================================
+
 export async function fetchWord(word, { timeoutMs = 10000 } = {}) {
   const query = word?.trim();
   if (!query) {
     throw new DictionaryError('Please enter a word to search.', { type: 'malformed' });
   }
 
-  // Abort if the request takes too long (default: 10s)
+  const provider = PROVIDERS[ACTIVE_PROVIDER];
+  if (!provider) {
+    throw new DictionaryError(`Unknown provider: ${ACTIVE_PROVIDER}`, { type: 'malformed' });
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   let response;
   try {
-    response = await fetch(PROVIDER_URLS[PROVIDER](query), {
-      signal: controller.signal,
-    });
+    response = await fetch(provider.url(query), { signal: controller.signal });
   } catch (err) {
-    // Log the real reason so it shows up in your console for debugging
     console.error('[Verbena] fetch failed:', err);
 
     if (err.name === 'AbortError') {
       throw new DictionaryError('The request timed out. Try again.', { type: 'network' });
     }
-    if (!navigator.onLine) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
       throw new DictionaryError('You appear to be offline.', { type: 'network' });
     }
     throw new DictionaryError(
@@ -70,36 +111,31 @@ export async function fetchWord(word, { timeoutMs = 10000 } = {}) {
     });
   }
 
-  let data;
+  let raw;
   try {
-    data = await response.json();
+    raw = await response.json();
   } catch {
     throw new DictionaryError('The dictionary service returned an unreadable response.', {
       type: 'malformed',
     });
   }
 
-  if (!Array.isArray(data) || data.length === 0) {
-    throw new DictionaryError(`No definitions found for "${query}".`, { type: 'not-found' });
-  }
-
-  return data.map(normalizeEntry);
+  const entries = provider.parse(raw, query);
+  return entries.map(normalizeEntry);
 }
 
-/**
- * Normalize a raw API entry into a stable shape our UI can rely on.
- * This is the contract: everything upstream sees this shape, never the raw payload.
- */
+// ============================================================
+// Normalization
+// ============================================================
+
 function normalizeEntry(rawEntry) {
   const phonetics = Array.isArray(rawEntry.phonetics) ? rawEntry.phonetics : [];
 
-  // Prefer the top-level `phonetic` string; fall back to the first phonetic with text.
   const phoneticText =
     rawEntry.phonetic ||
     phonetics.find((p) => p.text && p.text.trim())?.text ||
     '';
 
-  // First phonetic with a non-empty audio URL, normalized to https://
   const rawAudio = phonetics.find((p) => p.audio && p.audio.trim())?.audio || '';
   const audioUrl = normalizeAudioUrl(rawAudio);
 
@@ -116,33 +152,31 @@ function normalizeEntry(rawEntry) {
 
 function normalizeMeaning(rawMeaning) {
   const definitions = Array.isArray(rawMeaning.definitions) ? rawMeaning.definitions : [];
+
   return {
     partOfSpeech: rawMeaning.partOfSpeech || 'unknown',
     definitions: definitions
       .filter((d) => d.definition && d.definition.trim())
-      .slice(0, 5) // cap at 5 per meaning for readable UI
+      .slice(0, 5)
       .map((d) => ({
         definition: d.definition.trim(),
         example: d.example?.trim() || '',
       })),
-    synonyms: dedupe((rawMeaning.synonyms || []).map((s) => s.trim()).filter(Boolean)).slice(0, 8),
-    antonyms: dedupe((rawMeaning.antonyms || []).map((a) => a.trim()).filter(Boolean)).slice(0, 8),
+    synonyms: dedupe(
+      (rawMeaning.synonyms || []).map((s) => s.trim()).filter(Boolean)
+    ).slice(0, 8),
+    antonyms: dedupe(
+      (rawMeaning.antonyms || []).map((a) => a.trim()).filter(Boolean)
+    ).slice(0, 8),
   };
 }
 
-/**
- * The API sometimes returns protocol-relative URLs like "//ssl.gstatic.com/...".
- * Normalize them to https:// so <audio> doesn't complain.
- */
 function normalizeAudioUrl(url) {
   if (!url) return '';
   if (url.startsWith('//')) return `https:${url}`;
   return url;
 }
 
-/**
- * Case-insensitive dedupe, preserving first-seen casing.
- */
 function dedupe(arr) {
   const seen = new Set();
   const out = [];
