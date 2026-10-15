@@ -1,4 +1,4 @@
-import { Star, Volume2 } from 'lucide-react';
+import { Star, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -34,10 +34,15 @@ export function WordHeader({ word, phonetic, audioUrl, isFavorite, onToggleFavor
             'rounded-full h-10 w-10 transition-all',
             hasAudio
               ? 'hover:scale-105 hover:text-foreground'
-              : 'opacity-40 grayscale bg-transparent border-dashed text-muted-foreground cursor-not-allowed hover:bg-transparent'
+              : // Muted, inert look when no audio is available
+                'opacity-40 grayscale bg-transparent border-dashed text-muted-foreground cursor-not-allowed hover:bg-transparent'
           )}
         >
-          <Volume2 className="h-5 w-5" />
+          {hasAudio ? (
+            <Volume2 className="h-5 w-5" />
+          ) : (
+            <VolumeX className="h-5 w-5" />
+          )}
         </Button>
 
         <Button
