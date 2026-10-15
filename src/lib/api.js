@@ -17,20 +17,37 @@ export class DictionaryError extends Error {
  * Returns an array of normalized entry objects.
  * Throws DictionaryError on failure.
  */
-export async function fetchWord(word) {
+export async function fetchWord(word, { timeoutMs = 10000 } = {}) {
   const query = word?.trim();
   if (!query) {
     throw new DictionaryError('Please enter a word to search.', { type: 'malformed' });
   }
 
+  // Abort if the request takes too long (default: 10s)
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
   let response;
   try {
-    response = await fetch(`${API_BASE}/${encodeURIComponent(query)}`);
+    response = await fetch(`${API_BASE}/${encodeURIComponent(query)}`, {
+      signal: controller.signal,
+    });
   } catch (err) {
+    // Log the real reason so it shows up in your console for debugging
+    console.error('[Verbena] fetch failed:', err);
+
+    if (err.name === 'AbortError') {
+      throw new DictionaryError('The request timed out. Try again.', { type: 'network' });
+    }
+    if (!navigator.onLine) {
+      throw new DictionaryError('You appear to be offline.', { type: 'network' });
+    }
     throw new DictionaryError(
-      'Could not reach the dictionary service. Check your connection.',
+      `Could not reach the dictionary service. (${err.message || 'unknown network error'})`,
       { type: 'network' }
     );
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!response.ok) {
