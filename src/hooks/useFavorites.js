@@ -29,4 +29,14 @@ export function useFavorites() {
       setIsLoaded(true);
     }
   }, []);
+
+  // Persist to localStorage whenever favorites change (after initial load)
+  useEffect(() => {
+    if (!isLoaded) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(favorites));
+    } catch (err) {
+      console.warn('[Verbena] Failed to save favorites to localStorage:', err);
+    }
+  }, [favorites, isLoaded]);
 }
