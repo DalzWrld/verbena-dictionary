@@ -1,19 +1,11 @@
-// ============================================================
-// Provider configuration
-// ------------------------------------------------------------
-// Toggle the active provider without touching any other file.
-// Add new providers by extending PROVIDERS below.
-// ============================================================
-
-const ACTIVE_PROVIDER = 'cdn'; // 'dictionaryapi' | 'cdn' | 'wordnik'
+const ACTIVE_PROVIDER = 'wiktionary'; // 'dictionaryapi' | 'wiktionary' | 'wordnik'
 
 const PROVIDERS = {
-  // Free Dictionary API — keyless, but historically unreliable
+  // Free Dictionary API — keyless, unreliable, kept as fallback
   dictionaryapi: {
     url: (word) =>
       `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
     parse: (raw, word) => {
-      // Returns an array of raw entries
       if (!Array.isArray(raw) || raw.length === 0) {
         throw new DictionaryError(`No definitions found for "${word}".`, { type: 'not-found' });
       }
@@ -21,27 +13,56 @@ const PROVIDERS = {
     },
   },
 
-  // OpenDictionaryAPI (CDN) — same data source as Free Dictionary API,
-  // served as static JSON from jsDelivr. Much more reliable.
-  cdn: {
+  // Wiktionary REST API — official Wikimedia endpoint, no key required.
+  // Docs: https://en.wiktionary.org/api/rest_v1/
+  wiktionary: {
     url: (word) =>
-      `https://cdn.jsdelivr.net/gh/SH20RAJ/OpenDictionaryAPI/data/english/${encodeURIComponent(word)}.json`,
+      `https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`,
     parse: (raw, word) => {
-      // The CDN returns a single object (not an array)
-      if (!raw || typeof raw !== 'object') {
+      // Response shape: { en: [ { partOfSpeech, language, definitions: [...] } ] }
+      const englishEntries = raw?.en;
+      if (!Array.isArray(englishEntries) || englishEntries.length === 0) {
         throw new DictionaryError(`No definitions found for "${word}".`, { type: 'not-found' });
       }
-      return [raw];
+
+      // Flatten Wiktionary's structure into our internal "one entry per word" shape
+      const meanings = englishEntries
+        .map((group) => ({
+          partOfSpeech: group.partOfSpeech || 'unknown',
+          definitions: (group.definitions || [])
+            .filter((d) => d.definition && d.definition.trim())
+            .map((d) => ({
+              definition: stripHtml(d.definition),
+              example: extractFirstExample(d),
+            })),
+          // Wiktionary's REST API doesn't return synonyms/antonyms inline;
+          // they're in the page HTML. We leave these empty for now.
+          synonyms: [],
+          antonyms: [],
+        }))
+        .filter((m) => m.definitions.length > 0);
+
+      if (meanings.length === 0) {
+        throw new DictionaryError(`No usable definitions for "${word}".`, { type: 'not-found' });
+      }
+
+      return [
+        {
+          word,
+          phonetic: '', // Wiktionary REST doesn't expose this cleanly; skip for now
+          phonetics: [],
+          meanings,
+          sourceUrls: [`https://en.wiktionary.org/wiki/${encodeURIComponent(word)}`],
+        },
+      ];
     },
   },
 
-  // Wordnik — placeholder. Fill this in when your API key arrives.
+  // Wordnik — placeholder for when your key arrives
   wordnik: {
     url: (word) =>
       `https://api.wordnik.com/v4/word.json/${encodeURIComponent(word)}/definitions?limit=10&includeRelated=false&useCanonical=true&includeTags=false&api_key=YOUR_KEY_HERE`,
     parse: (raw, word) => {
-      // Wordnik returns a flat array of definition objects, not a grouped structure.
-      // We'll build a proper adapter once the key is in hand.
       throw new DictionaryError('Wordnik provider not yet implemented.', { type: 'malformed' });
     },
   },
@@ -175,6 +196,40 @@ function normalizeAudioUrl(url) {
   if (!url) return '';
   if (url.startsWith('//')) return `https:${url}`;
   return url;
+}
+
+/**
+ * Wiktionary definitions come wrapped in HTML. Strip tags and decode the
+ * common entities so we can render plain text safely.
+ */
+function stripHtml(input) {
+  if (!input) return '';
+  return input
+    .replace(/<[^>]*>/g, '') // remove all tags
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ') // collapse whitespace
+    .trim();
+}
+
+/**
+ * Wiktionary returns examples in a few possible shapes depending on the
+ * page. Try the common ones and return the first usable string.
+ */
+function extractFirstExample(defObj) {
+  if (Array.isArray(defObj.parsedExamples) && defObj.parsedExamples.length > 0) {
+    const first = defObj.parsedExamples[0];
+    if (first?.example) return stripHtml(first.example);
+  }
+  if (Array.isArray(defObj.examples) && defObj.examples.length > 0) {
+    const first = defObj.examples[0];
+    if (typeof first === 'string') return stripHtml(first);
+  }
+  return '';
 }
 
 function dedupe(arr) {
