@@ -5,4 +5,20 @@ import { cn } from '@/lib/utils';
 export function WordHeader({ word, phonetic, audioUrl, isFavorite, onToggleFavorite, onPlayAudio }) {
   const hasAudio = Boolean(audioUrl);
   const hasPhonetic = Boolean(phonetic && phonetic.trim());
+
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4 mb-6">
+      {/* Left side: word + phonetic */}
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2 min-w-0">
+        <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-foreground wrap-break-word">
+          {word}
+        </h2>
+        {hasPhonetic && (
+          <span className="font-mono text-sm px-3 py-1 rounded-full bg-secondary text-secondary-foreground whitespace-nowrap">
+            {phonetic}
+          </span>
+        )}
+      </div>
+    </div>
+  )
 }
