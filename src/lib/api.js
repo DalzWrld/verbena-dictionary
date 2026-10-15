@@ -1,5 +1,12 @@
 const API_BASE = 'https://api.dictionaryapi.dev/api/v2/entries/en';
 
+const PROVIDER = 'cdn'; // 'dictionaryapi' | 'cdn'
+
+const PROVIDER_URLS = {
+  dictionaryapi: (word) => `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
+  cdn: (word) => `https://cdn.jsdelivr.net/gh/SH20RAJ/OpenDictionaryAPI/data/english/${encodeURIComponent(word)}.json`,
+};
+
 /**
  * Custom error class so callers can distinguish API failures from other errors.
  */
@@ -29,7 +36,7 @@ export async function fetchWord(word, { timeoutMs = 10000 } = {}) {
 
   let response;
   try {
-    response = await fetch(`${API_BASE}/${encodeURIComponent(query)}`, {
+    response = await fetch(PROVIDER_URLS[PROVIDER](query), {
       signal: controller.signal,
     });
   } catch (err) {
