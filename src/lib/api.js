@@ -45,4 +45,19 @@ export async function fetchWord(word) {
       status: response.status,
     });
   }
+
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    throw new DictionaryError('The dictionary service returned an unreadable response.', {
+      type: 'malformed',
+    });
+  }
+
+  if (!Array.isArray(data) || data.length === 0) {
+    throw new DictionaryError(`No definitions found for "${query}".`, { type: 'not-found' });
+  }
+
+  return data.map(normalizeEntry);
 }
