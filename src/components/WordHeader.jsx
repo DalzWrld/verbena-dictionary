@@ -37,6 +37,26 @@ export function WordHeader({ word, phonetic, audioUrl, isFavorite, onToggleFavor
         >
           <Volume2 className="h-5 w-5" />
         </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={onToggleFavorite}
+          aria-label={isFavorite ? 'Remove from favorites' : 'Save to favorites'}
+          title={isFavorite ? 'Remove from favorites' : 'Save to favorites'}
+          className={cn(
+            'rounded-full h-10 w-10 transition-all',
+            isFavorite
+              ? 'text-amber-500 border-amber-300 hover:text-amber-600 hover:border-amber-400'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Star
+            className="h-5 w-5"
+            fill={isFavorite ? 'currentColor' : 'none'}
+          />
+        </Button>
       </div>
     </div>
   )
