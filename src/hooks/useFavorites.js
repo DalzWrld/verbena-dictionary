@@ -73,4 +73,24 @@ export function useFavorites() {
     },
     []
   );
+
+  // Remove a word by name (case-insensitive). Returns true if removed.
+  const removeFavorite = useCallback((word) => {
+    if (!word) return false;
+    const target = word.trim().toLowerCase();
+
+    let removed = false;
+    setFavorites((prev) => {
+      const next = prev.filter((fav) => {
+        if (fav.word.toLowerCase() === target) {
+          removed = true;
+          return false;
+        }
+        return true;
+      });
+      return removed ? next : prev;
+    });
+
+    return removed;
+  }, []);
 }
