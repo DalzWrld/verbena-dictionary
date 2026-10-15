@@ -89,3 +89,19 @@ function normalizeEntry(rawEntry) {
     sourceUrls: Array.isArray(rawEntry.sourceUrls) ? rawEntry.sourceUrls : [],
   };
 }
+
+function normalizeMeaning(rawMeaning) {
+  const definitions = Array.isArray(rawMeaning.definitions) ? rawMeaning.definitions : [];
+  return {
+    partOfSpeech: rawMeaning.partOfSpeech || 'unknown',
+    definitions: definitions
+      .filter((d) => d.definition && d.definition.trim())
+      .slice(0, 5) // cap at 5 per meaning for readable UI
+      .map((d) => ({
+        definition: d.definition.trim(),
+        example: d.example?.trim() || '',
+      })),
+    synonyms: dedupe((rawMeaning.synonyms || []).map((s) => s.trim()).filter(Boolean)).slice(0, 8),
+    antonyms: dedupe((rawMeaning.antonyms || []).map((a) => a.trim()).filter(Boolean)).slice(0, 8),
+  };
+}
