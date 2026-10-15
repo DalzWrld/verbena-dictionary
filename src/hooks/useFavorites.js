@@ -49,4 +49,28 @@ export function useFavorites() {
     },
     [favorites]
   );
+
+  // Add a word to favorites. Accepts { word, phonetic, pos }.
+  // Returns true if added, false if it was already there or invalid.
+  const addFavorite = useCallback(
+    ({ word, phonetic = '', pos = '' }) => {
+      if (!word || !word.trim()) return false;
+      const normalized = word.trim().toLowerCase();
+
+      let added = false;
+      setFavorites((prev) => {
+        if (prev.some((fav) => fav.word.toLowerCase() === normalized)) {
+          return prev; // already exists — no change
+        }
+        added = true;
+        return [
+          { word: normalized, phonetic, pos, addedAt: Date.now() },
+          ...prev,
+        ];
+      });
+
+      return added;
+    },
+    []
+  );
 }
