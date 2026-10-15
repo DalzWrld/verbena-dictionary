@@ -107,4 +107,20 @@ export function useFavorites() {
     },
     [isFavorite, addFavorite, removeFavorite]
   );
+
+  // Clear all favorites (useful for a "reset" button later)
+  const clearFavorites = useCallback(() => {
+    setFavorites([]);
+  }, []);
+
+  return {
+    favorites,
+    isLoaded,
+    isFavorite,
+    addFavorite,
+    removeFavorite,
+    toggleFavorite,
+    clearFavorites,
+    count: favorites.length,
+  };
 }
