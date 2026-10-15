@@ -31,8 +31,10 @@ export function WordHeader({ word, phonetic, audioUrl, isFavorite, onToggleFavor
           aria-label={hasAudio ? 'Play pronunciation' : 'Pronunciation unavailable'}
           title={hasAudio ? 'Play pronunciation' : 'Pronunciation unavailable'}
           className={cn(
-            'rounded-full h-10 w-10 transition-transform',
-            hasAudio && 'hover:scale-105'
+            'rounded-full h-10 w-10 transition-all',
+            hasAudio
+              ? 'hover:scale-105 hover:text-foreground'
+              : 'opacity-40 grayscale bg-transparent border-dashed text-muted-foreground cursor-not-allowed hover:bg-transparent'
           )}
         >
           <Volume2 className="h-5 w-5" />
