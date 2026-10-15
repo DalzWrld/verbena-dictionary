@@ -32,4 +32,17 @@ export async function fetchWord(word) {
       { type: 'network' }
     );
   }
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new DictionaryError(`"${query}" wasn't found. Try another word.`, {
+        type: 'not-found',
+        status: 404,
+      });
+    }
+    throw new DictionaryError(`The dictionary service returned an error (${response.status}).`, {
+      type: 'server',
+      status: response.status,
+    });
+  }
 }
