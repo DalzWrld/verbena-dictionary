@@ -61,3 +61,31 @@ export async function fetchWord(word) {
 
   return data.map(normalizeEntry);
 }
+
+/**
+ * Normalize a raw API entry into a stable shape our UI can rely on.
+ * This is the contract: everything upstream sees this shape, never the raw payload.
+ */
+function normalizeEntry(rawEntry) {
+  const phonetics = Array.isArray(rawEntry.phonetics) ? rawEntry.phonetics : [];
+
+  // Prefer the top-level `phonetic` string; fall back to the first phonetic with text.
+  const phoneticText =
+    rawEntry.phonetic ||
+    phonetics.find((p) => p.text && p.text.trim())?.text ||
+    '';
+
+  // First phonetic with a non-empty audio URL, normalized to https://
+  const rawAudio = phonetics.find((p) => p.audio && p.audio.trim())?.audio || '';
+  const audioUrl = normalizeAudioUrl(rawAudio);
+
+  const meanings = Array.isArray(rawEntry.meanings) ? rawEntry.meanings : [];
+
+  return {
+    word: rawEntry.word || '',
+    phonetic: phoneticText,
+    audioUrl,
+    meanings: meanings.map(normalizeMeaning),
+    sourceUrls: Array.isArray(rawEntry.sourceUrls) ? rawEntry.sourceUrls : [],
+  };
+}
