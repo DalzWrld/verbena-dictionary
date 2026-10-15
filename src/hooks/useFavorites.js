@@ -93,4 +93,18 @@ export function useFavorites() {
 
     return removed;
   }, []);
+
+  // Toggle favorite. Returns the new state ("added" | "removed" | "noop").
+  const toggleFavorite = useCallback(
+    (wordData) => {
+      if (!wordData || !wordData.word) return 'noop';
+      if (isFavorite(wordData.word)) {
+        removeFavorite(wordData.word);
+        return 'removed';
+      }
+      const added = addFavorite(wordData);
+      return added ? 'added' : 'noop';
+    },
+    [isFavorite, addFavorite, removeFavorite]
+  );
 }
