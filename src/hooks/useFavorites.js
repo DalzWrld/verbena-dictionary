@@ -39,4 +39,14 @@ export function useFavorites() {
       console.warn('[Verbena] Failed to save favorites to localStorage:', err);
     }
   }, [favorites, isLoaded]);
+
+  // Check if a word is already saved (case-insensitive)
+  const isFavorite = useCallback(
+    (word) => {
+      if (!word) return false;
+      const target = word.trim().toLowerCase();
+      return favorites.some((fav) => fav.word.toLowerCase() === target);
+    },
+    [favorites]
+  );
 }
