@@ -19,6 +19,25 @@ export function WordHeader({ word, phonetic, audioUrl, isFavorite, onToggleFavor
           </span>
         )}
       </div>
+
+      {/* Right side: audio + favorite */}
+      <div className="flex items-center gap-2 shrink-0">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={onPlayAudio}
+          disabled={!hasAudio}
+          aria-label={hasAudio ? 'Play pronunciation' : 'Pronunciation unavailable'}
+          title={hasAudio ? 'Play pronunciation' : 'Pronunciation unavailable'}
+          className={cn(
+            'rounded-full h-10 w-10 transition-transform',
+            hasAudio && 'hover:scale-105'
+          )}
+        >
+          <Volume2 className="h-5 w-5" />
+        </Button>
+      </div>
     </div>
   )
 }
