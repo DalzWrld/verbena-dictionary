@@ -105,3 +105,13 @@ function normalizeMeaning(rawMeaning) {
     antonyms: dedupe((rawMeaning.antonyms || []).map((a) => a.trim()).filter(Boolean)).slice(0, 8),
   };
 }
+
+/**
+ * The API sometimes returns protocol-relative URLs like "//ssl.gstatic.com/...".
+ * Normalize them to https:// so <audio> doesn't complain.
+ */
+function normalizeAudioUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('//')) return `https:${url}`;
+  return url;
+}
