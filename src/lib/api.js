@@ -1,4 +1,6 @@
-const ACTIVE_PROVIDER = 'wiktionary'; // 'dictionaryapi' | 'wiktionary' | 'wordnik'
+const ACTIVE_PROVIDER = 'wordnik';
+
+const DICTIONARY_API_KEY = import.meta.env.DICTIONARY_API_KEY || 'DEMO_KEY';
 
 const PROVIDERS = {
   // Free Dictionary API — keyless, unreliable, kept as fallback
@@ -58,12 +60,71 @@ const PROVIDERS = {
     },
   },
 
-  // Wordnik — placeholder for when your key arrives
+  // Wordnik API — requires an API key, kept as fallback
   wordnik: {
-    url: (word) =>
-      `https://api.wordnik.com/v4/word.json/${encodeURIComponent(word)}/definitions?limit=10&includeRelated=false&useCanonical=true&includeTags=false&api_key=YOUR_KEY_HERE`,
+    url: (word) =>{
+      // Batch all the resources we need in one call to save rate limit
+      const base = `http://api.wordnik.com/v4/words.json/randomWord?api_key=${DICTIONARY_API_KEY}/${encodeURIComponent(word)}`;
+      const params = new URLSearchParams({
+        api_key: DICTIONARY_API_KEY,
+        useCanonical: 'true',
+        limit: '10',
+      });
+      // We'll construct a multi-resource request manually below
+      return `${base}?multi&resource.1=definitions&resource.2=pronunciations&resource.3=audio&resource.4=relatedWords&type.4=synonym,antonym&limit.4=10&${params}`;
+    },
     parse: (raw, word) => {
-      throw new DictionaryError('Wordnik provider not yet implemented.', { type: 'malformed' });
+      // Wordnik batch responses come back as { responseItems: [...] }
+      const items = raw?.responseItems;
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new DictionaryError(`No definitions found for "${word}".`, { type: 'not-found' });
+      }
+
+      const getItem = (name) =>
+        items.find((i) => i.responseName === name)?.responseContent ?? [];
+
+      const definitions = getItem('definitions');
+      const pronunciations = getItem('pronunciations');
+      const audio = getItem('audio');
+      const related = getItem('relatedWords');
+
+      if (!Array.isArray(definitions) || definitions.length === 0) {
+        throw new DictionaryError(`No definitions found for "${word}".`, { type: 'not-found' });
+      }
+
+      // Group definitions by partOfSpeech
+      const byPOS = {};
+      for (const def of definitions) {
+        const pos = def.partOfSpeech || 'unknown';
+        if (!byPOS[pos]) byPOS[pos] = [];
+        byPOS[pos].push({
+          definition: def.text || '',
+          example: def.exampleUses?.[0]?.text || '',
+        });
+      }
+
+      // Extract synonyms/antonyms from relatedWords
+      const syns = [];
+      const ants = [];
+      for (const rel of related) {
+        if (rel.relationshipType === 'synonym') syns.push(...(rel.words || []));
+        if (rel.relationshipType === 'antonym') ants.push(...(rel.words || []));
+      }
+
+      return [{
+        word,
+        phonetic: pronunciations?.[0]?.raw || '',
+        phonetics: pronunciations?.map((p) => ({ text: p.raw })) || [],
+        audioUrl: audio?.[0]?.fileUrl || '',
+        meanings: Object.entries(byPOS).map(([pos, defs]) => ({
+          partOfSpeech: pos,
+          definitions: defs,
+          synonyms: dedupe(syns).slice(0, 8),
+          antonyms: dedupe(ants).slice(0, 8),
+        })),
+        sourceUrls: [`https://www.wordnik.com/words/${encodeURIComponent(word)}`],
+        attribution: definitions[0]?.attributionText || '',
+      }];
     },
   },
 };
