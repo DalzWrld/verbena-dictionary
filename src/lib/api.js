@@ -1,6 +1,7 @@
 const ACTIVE_PROVIDER = 'wordnik';
 
-const DICTIONARY_API_KEY = import.meta.env.DICTIONARY_API_KEY || 'DEMO_KEY';
+const DICTIONARY_BASE_URL = import.meta.env.VITE_WORDNIK_BASE_URL || 'https://api.wordnik.com/v4';
+const DICTIONARY_API_KEY = import.meta.env.VITE_WORDNIK_API_KEY || 'DEMO_KEY';
 
 const PROVIDERS = {
   // Free Dictionary API — keyless, unreliable, kept as fallback
@@ -62,39 +63,23 @@ const PROVIDERS = {
 
   // Wordnik API — requires an API key, kept as fallback
   wordnik: {
-    url: (word) =>{
-      // Batch all the resources we need in one call to save rate limit
-      const base = `http://api.wordnik.com/v4/words.json/randomWord?api_key=${DICTIONARY_API_KEY}/${encodeURIComponent(word)}`;
-      const params = new URLSearchParams({
-        api_key: DICTIONARY_API_KEY,
-        useCanonical: 'true',
-        limit: '10',
-      });
-      // We'll construct a multi-resource request manually below
-      return `${base}?multi&resource.1=definitions&resource.2=pronunciations&resource.3=audio&resource.4=relatedWords&type.4=synonym,antonym&limit.4=10&${params}`;
+    url: (word) => {
+      const params = new URLSearchParams();
+      params.append('api_key', DICTIONARY_API_KEY);
+      params.append('useCanonical', 'true');
+      params.append('limit', '10');
+  
+      return `${DICTIONARY_BASE_URL}/word.json/${encodeURIComponent(word)}/definitions?${params.toString()}`;
     },
     parse: (raw, word) => {
-      // Wordnik batch responses come back as { responseItems: [...] }
-      const items = raw?.responseItems;
-      if (!Array.isArray(items) || items.length === 0) {
-        throw new DictionaryError(`No definitions found for "${word}".`, { type: 'not-found' });
-      }
-
-      const getItem = (name) =>
-        items.find((i) => i.responseName === name)?.responseContent ?? [];
-
-      const definitions = getItem('definitions');
-      const pronunciations = getItem('pronunciations');
-      const audio = getItem('audio');
-      const related = getItem('relatedWords');
-
-      if (!Array.isArray(definitions) || definitions.length === 0) {
+      // Wordnik's /definitions endpoint returns a flat array of definition objects
+      if (!Array.isArray(raw) || raw.length === 0) {
         throw new DictionaryError(`No definitions found for "${word}".`, { type: 'not-found' });
       }
 
       // Group definitions by partOfSpeech
       const byPOS = {};
-      for (const def of definitions) {
+      for (const def of raw) {
         const pos = def.partOfSpeech || 'unknown';
         if (!byPOS[pos]) byPOS[pos] = [];
         byPOS[pos].push({
@@ -103,27 +88,19 @@ const PROVIDERS = {
         });
       }
 
-      // Extract synonyms/antonyms from relatedWords
-      const syns = [];
-      const ants = [];
-      for (const rel of related) {
-        if (rel.relationshipType === 'synonym') syns.push(...(rel.words || []));
-        if (rel.relationshipType === 'antonym') ants.push(...(rel.words || []));
-      }
-
+      // No phonetics or audio from this endpoint — that's OK
       return [{
         word,
-        phonetic: pronunciations?.[0]?.raw || '',
-        phonetics: pronunciations?.map((p) => ({ text: p.raw })) || [],
-        audioUrl: audio?.[0]?.fileUrl || '',
+        phonetic: '',        // not available from /definitions
+        phonetics: [],      // no audio data
         meanings: Object.entries(byPOS).map(([pos, defs]) => ({
           partOfSpeech: pos,
           definitions: defs,
-          synonyms: dedupe(syns).slice(0, 8),
-          antonyms: dedupe(ants).slice(0, 8),
+          synonyms: [],      // would need a separate /relatedWords call
+          antonyms: [],
         })),
         sourceUrls: [`https://www.wordnik.com/words/${encodeURIComponent(word)}`],
-        attribution: definitions[0]?.attributionText || '',
+        attribution: raw[0]?.attributionText || '',
       }];
     },
   },
@@ -156,6 +133,9 @@ export async function fetchWord(word, { timeoutMs = 10000 } = {}) {
   if (!provider) {
     throw new DictionaryError(`Unknown provider: ${ACTIVE_PROVIDER}`, { type: 'malformed' });
   }
+
+  // Debug: log the URL being built
+  console.log('[Verbena] Fetching:', provider.url(query));
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
