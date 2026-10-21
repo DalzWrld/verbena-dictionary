@@ -52,6 +52,45 @@ export function MeaningBlock({ partOfSpeech, definitions, synonyms = [], antonym
             </li>
           ))}
         </ol>
+
+        {/* Synonyms / antonyms */}
+        {hasRelated && (
+          <div className="mt-4 ml-9 flex flex-wrap gap-x-6 gap-y-2">
+            {hasSynonyms && (
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Synonyms
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {synonyms.map((syn) => (
+                    <RelatedWord
+                      key={`syn-${syn}`}
+                      word={syn}
+                      onClick={() => onLookupWord?.(syn)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {hasAntonyms && (
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Antonyms
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {antonyms.map((ant) => (
+                    <RelatedWord
+                      key={`ant-${ant}`}
+                      word={ant}
+                      onClick={() => onLookupWord?.(ant)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </section>
   )
