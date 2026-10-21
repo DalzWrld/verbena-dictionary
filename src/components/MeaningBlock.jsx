@@ -72,7 +72,7 @@ export function MeaningBlock({ partOfSpeech, definitions, synonyms = [], antonym
                 </div>
               </div>
             )}
-            
+
             {hasAntonyms && (
               <div className="flex flex-wrap items-baseline gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -94,4 +94,27 @@ export function MeaningBlock({ partOfSpeech, definitions, synonyms = [], antonym
       </div>
     </section>
   )
+}
+
+
+function RelatedWord({ word, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center',
+        'px-2.5 py-0.5 rounded-full',
+        'text-xs font-medium',
+        'bg-secondary text-secondary-foreground',
+        'border border-transparent',
+        'transition-colors',
+        'hover:bg-amber-100 hover:text-amber-900 hover:border-amber-300',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        'dark:hover:bg-amber-950 dark:hover:text-amber-100 dark:hover:border-amber-800'
+      )}
+    >
+      {word}
+    </button>
+  );
 }
